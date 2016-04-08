@@ -49,6 +49,13 @@ AC_ARG_VAR([OMR_CROSS_CONFIGURE],
 	Compiler and feature detection tests will be invalid. All options must be configured manually.
 	One of: yes,no. (Default: no)])
 
+AC_ARG_VAR([OMR_LIBDWARF_INSTALL],
+	[Path to search for libdwarf dependencies. Needed to enable DDR support for DWARF debug data.
+	(Default: search default system paths)])
+AC_ARG_VAR([OMR_LIBELF_INSTALL],
+	[Path to search for libelf dependencies. Needed to enable DDR support for DWARF debug data.
+	(Default: search default system paths)])
+
 AC_ARG_ENABLE([optimized],
 	AS_HELP_STRING([--enable-optimized], [Create an optimized build. (Default: yes)]),
 	[],
@@ -485,19 +492,77 @@ OMRCFG_DEFINE_FLAG([OMRTHREAD_LIB_UNIX],[1],
 	)]
 )
 
-AS_IF([test "$cross_compiling" != "yes"],
-	[# Look for libdwarf.h
-	AC_CHECK_HEADER([libdwarf.h], [],
-		[AC_CHECK_HEADER([/usr/include/libdwarf/libdwarf.h],
-			[OMR_LIBDWARF_IPATH="/usr/include/libdwarf"])])
+###
+### Detect libdwarf
+###
 
-	# Look for libdwarf.so
-	# If the shared lib isn't found, assume we're linking the static lib,
-	# so elf must be linked explicitly.
-	AC_CHECK_FILE([/usr/lib/libdwarf.so],
-		[OMR_LIBDWARF_SHARED_LIBS="dwarf"],
-		[OMR_LIBDWARF_STATIC_LIBS="dwarf elf"])]
+# We only use libdwarf for DDR on Linux.
+
+# If OMR_LIBDWARF_INSTALL was specified, check for libdwarf headers and libraries
+# in that directory. Otherwise, look for them in locations where they are installed
+# for distros that provide a binary libdwarf-devel package.
+
+AS_IF([test "$enable_DDR" = "yes" && test "$OMR_HOST_OS" = linux],
+[# Pretend we're not cross-compiling so that we can do file existence checks.
+	save_cross_compiling=$cross_compiling
+	cross_compiling=no
+
+	AS_IF([test "x$OMR_LIBDWARF_INSTALL" != "x"],
+	[# Look for libdwarf in user-specified install directory
+
+		# Look for include files
+		AC_CHECK_HEADERS([$OMR_LIBDWARF_INSTALL/libdwarf.h $OMR_LIBDWARF_INSTALL/dwarf.h],
+			[],
+			[AC_MSG_ERROR([libdwarf include files not found in $OMR_LIBDWARF_INSTALL])]
+		)
+
+		# Determine whether libdwarf is a shared or static library
+		# Look for libdwarf.so
+		AC_CHECK_FILE([$OMR_LIBDWARF_INSTALL/libdwarf.so],
+			[OMR_LIBDWARF_SHARED_LIBS="dwarf"],
+			[# Look for libdwarf.a
+			# If linking libdwarf statically, libelf must be linked explicitly.
+			AC_CHECK_FILE([$OMR_LIBDWARF_INSTALL/libdwarf.a],
+				[OMR_LIBDWARF_STATIC_LIBS="dwarf elf"],
+				[AC_MSG_ERROR([Unable to find libdwarf.so or libdwarf.a in $OMR_LIBDWARF_INSTALL])]
+			)]
+		)
+
+		OMR_LIBDWARF_IPATH=$OMR_LIBDWARF_INSTALL
+		OMR_LIBDWARF_LIBPATH=$OMR_LIBDWARF_INSTALL
+	],
+	[# Look for libdwarf in default install directory
+
+		# Look for include files
+		AC_CHECK_HEADERS([libdwarf.h dwarf.h],
+			[],
+			[AC_CHECK_HEADERS([/usr/include/libdwarf/libdwarf.h /usr/include/libdwarf/dwarf.h],
+				[OMR_LIBDWARF_IPATH="/usr/include/libdwarf"],
+				[AC_MSG_ERROR([Unable to find libdwarf include files])]
+			)]
+		)
+
+		# Determine whether libdwarf is a shared or static library
+		# Look for libdwarf.so
+		AC_CHECK_FILE([/usr/lib/libdwarf.so],
+			[OMR_LIBDWARF_SHARED_LIBS="dwarf"],
+			[# Look for libdwarf.a
+			# If linking libdwarf statically, libelf must be linked explicitly.
+			AC_CHECK_FILE([/usr/lib/libdwarf.a],
+				[OMR_LIBDWARF_STATIC_LIBS="dwarf elf"],
+				[AC_MSG_ERROR([Unable to find libdwarf.so or libdwarf.a in /usr/lib])]
+			)]
+		)
+	])
+
+	# If specified, add libelf libpath
+	AS_IF([test "x$OMR_LIBELF_INSTALL" != "x"],
+		[OMR_LIBDWARF_LIBPATH="$OMR_LIBDWARF_LIBPATH $OMR_LIBELF_INSTALL"])
+
+	# Restore cross-compiling value
+	cross_compiling=$save_cross_compiling]
 )
+
 
 ###
 ### Variable Substitution
@@ -552,8 +617,8 @@ AC_SUBST(libprefix)
 AC_SUBST(lib_output_dir)
 AC_SUBST(exe_output_dir)
 
-
 AC_SUBST(OMR_LIBDWARF_IPATH)
+AC_SUBST(OMR_LIBDWARF_LIBPATH)
 AC_SUBST(OMR_LIBDWARF_SHARED_LIBS)
 AC_SUBST(OMR_LIBDWARF_STATIC_LIBS)
 

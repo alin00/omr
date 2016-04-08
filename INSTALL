@@ -41,3 +41,6 @@ The following packages may also be required to build libdwarf:
 To build libelf, the source code can be obtained from:
 - https://fedorahosted.org/elfutils/
 
+The configure variables OMR_LIBDWARF_INSTALL and OMR_LIBELF_INSTALL can be
+used to point to custom install locations for libdwarf and libelf.
+

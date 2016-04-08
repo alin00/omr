@@ -624,6 +624,7 @@ OMR_UNDEFINED_JIT_VERSION_STRING
 OMR_UNDEFINED_VERSION_STRING
 OMR_LIBDWARF_STATIC_LIBS
 OMR_LIBDWARF_SHARED_LIBS
+OMR_LIBDWARF_LIBPATH
 OMR_LIBDWARF_IPATH
 libprefix
 objext
@@ -729,6 +730,8 @@ CPPFLAGS
 LDFLAGS
 CFLAGS
 CC
+OMR_LIBELF_INSTALL
+OMR_LIBDWARF_INSTALL
 OMR_CROSS_CONFIGURE
 OMR_TOOLCHAIN
 OMR_TARGET_DATASIZE
@@ -876,6 +879,8 @@ OMR_HOST_ARCH
 OMR_TARGET_DATASIZE
 OMR_TOOLCHAIN
 OMR_CROSS_CONFIGURE
+OMR_LIBDWARF_INSTALL
+OMR_LIBELF_INSTALL
 CC
 CFLAGS
 LDFLAGS
@@ -1659,6 +1664,14 @@ Some influential environment variables:
               capable of building the package. Compiler and feature detection
               tests will be invalid. All options must be configured manually.
               One of: yes,no. (Default: no)
+  OMR_LIBDWARF_INSTALL
+              Path to search for libdwarf dependencies. Needed to enable DDR
+              support for DWARF debug data. (Default: search default system
+              paths)
+  OMR_LIBELF_INSTALL
+              Path to search for libelf dependencies. Needed to enable DDR
+              support for DWARF debug data. (Default: search default system
+              paths)
   CC          C compiler command
   CFLAGS      C compiler flags
   LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
@@ -2695,6 +2708,9 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 ###
 ### Options
 ###
+
+
+
 
 
 
@@ -7730,26 +7746,136 @@ fi
 
 
 
-if test "$cross_compiling" != "yes"; then :
-  # Look for libdwarf.h
-	ac_fn_c_check_header_mongrel "$LINENO" "libdwarf.h" "ac_cv_header_libdwarf_h" "$ac_includes_default"
-if test "x$ac_cv_header_libdwarf_h" = xyes; then :
+###
+### Detect libdwarf
+###
+
+# We only use libdwarf for DDR on Linux.
+
+# If OMR_LIBDWARF_INSTALL was specified, check for libdwarf headers and libraries
+# in that directory. Otherwise, look for them in locations where they are installed
+# for distros that provide a binary libdwarf-devel package.
+
+if test "$enable_DDR" = "yes" && test "$OMR_HOST_OS" = linux; then :
+  # Pretend we're not cross-compiling so that we can do file existence checks.
+	save_cross_compiling=$cross_compiling
+	cross_compiling=no
+
+	if test "x$OMR_LIBDWARF_INSTALL" != "x"; then :
+  # Look for libdwarf in user-specified install directory
+
+		# Look for include files
+		for ac_header in $OMR_LIBDWARF_INSTALL/libdwarf.h $OMR_LIBDWARF_INSTALL/dwarf.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
 
 else
-  ac_fn_c_check_header_mongrel "$LINENO" "/usr/include/libdwarf/libdwarf.h" "ac_cv_header__usr_include_libdwarf_libdwarf_h" "$ac_includes_default"
-if test "x$ac_cv_header__usr_include_libdwarf_libdwarf_h" = xyes; then :
-  OMR_LIBDWARF_IPATH="/usr/include/libdwarf"
+  as_fn_error $? "libdwarf include files not found in $OMR_LIBDWARF_INSTALL" "$LINENO" 5
+
+fi
+
+done
+
+
+		# Determine whether libdwarf is a shared or static library
+		# Look for libdwarf.so
+		as_ac_File=`$as_echo "ac_cv_file_$OMR_LIBDWARF_INSTALL/libdwarf.so" | $as_tr_sh`
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $OMR_LIBDWARF_INSTALL/libdwarf.so" >&5
+$as_echo_n "checking for $OMR_LIBDWARF_INSTALL/libdwarf.so... " >&6; }
+if eval \${$as_ac_File+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  test "$cross_compiling" = yes &&
+  as_fn_error $? "cannot check for file existence when cross compiling" "$LINENO" 5
+if test -r "$OMR_LIBDWARF_INSTALL/libdwarf.so"; then
+  eval "$as_ac_File=yes"
+else
+  eval "$as_ac_File=no"
+fi
+fi
+eval ac_res=\$$as_ac_File
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_File"\" = x"yes"; then :
+  OMR_LIBDWARF_SHARED_LIBS="dwarf"
+else
+  # Look for libdwarf.a
+			# If linking libdwarf statically, libelf must be linked explicitly.
+			as_ac_File=`$as_echo "ac_cv_file_$OMR_LIBDWARF_INSTALL/libdwarf.a" | $as_tr_sh`
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $OMR_LIBDWARF_INSTALL/libdwarf.a" >&5
+$as_echo_n "checking for $OMR_LIBDWARF_INSTALL/libdwarf.a... " >&6; }
+if eval \${$as_ac_File+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  test "$cross_compiling" = yes &&
+  as_fn_error $? "cannot check for file existence when cross compiling" "$LINENO" 5
+if test -r "$OMR_LIBDWARF_INSTALL/libdwarf.a"; then
+  eval "$as_ac_File=yes"
+else
+  eval "$as_ac_File=no"
+fi
+fi
+eval ac_res=\$$as_ac_File
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+if eval test \"x\$"$as_ac_File"\" = x"yes"; then :
+  OMR_LIBDWARF_STATIC_LIBS="dwarf elf"
+else
+  as_fn_error $? "Unable to find libdwarf.so or libdwarf.a in $OMR_LIBDWARF_INSTALL" "$LINENO" 5
+
 fi
 
 
 fi
 
 
+		OMR_LIBDWARF_IPATH=$OMR_LIBDWARF_INSTALL
+		OMR_LIBDWARF_LIBPATH=$OMR_LIBDWARF_INSTALL
 
-	# Look for libdwarf.so
-	# If the shared lib isn't found, assume we're linking the static lib,
-	# so elf must be linked explicitly.
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for /usr/lib/libdwarf.so" >&5
+else
+  # Look for libdwarf in default install directory
+
+		# Look for include files
+		for ac_header in libdwarf.h dwarf.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+
+else
+  for ac_header in /usr/include/libdwarf/libdwarf.h /usr/include/libdwarf/dwarf.h
+do :
+  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+  cat >>confdefs.h <<_ACEOF
+#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
+ OMR_LIBDWARF_IPATH="/usr/include/libdwarf"
+else
+  as_fn_error $? "Unable to find libdwarf include files" "$LINENO" 5
+
+fi
+
+done
+
+
+fi
+
+done
+
+
+		# Determine whether libdwarf is a shared or static library
+		# Look for libdwarf.so
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for /usr/lib/libdwarf.so" >&5
 $as_echo_n "checking for /usr/lib/libdwarf.so... " >&6; }
 if ${ac_cv_file__usr_lib_libdwarf_so+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -7767,11 +7893,46 @@ $as_echo "$ac_cv_file__usr_lib_libdwarf_so" >&6; }
 if test "x$ac_cv_file__usr_lib_libdwarf_so" = xyes; then :
   OMR_LIBDWARF_SHARED_LIBS="dwarf"
 else
+  # Look for libdwarf.a
+			# If linking libdwarf statically, libelf must be linked explicitly.
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for /usr/lib/libdwarf.a" >&5
+$as_echo_n "checking for /usr/lib/libdwarf.a... " >&6; }
+if ${ac_cv_file__usr_lib_libdwarf_a+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  test "$cross_compiling" = yes &&
+  as_fn_error $? "cannot check for file existence when cross compiling" "$LINENO" 5
+if test -r "/usr/lib/libdwarf.a"; then
+  ac_cv_file__usr_lib_libdwarf_a=yes
+else
+  ac_cv_file__usr_lib_libdwarf_a=no
+fi
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_file__usr_lib_libdwarf_a" >&5
+$as_echo "$ac_cv_file__usr_lib_libdwarf_a" >&6; }
+if test "x$ac_cv_file__usr_lib_libdwarf_a" = xyes; then :
   OMR_LIBDWARF_STATIC_LIBS="dwarf elf"
+else
+  as_fn_error $? "Unable to find libdwarf.so or libdwarf.a in /usr/lib" "$LINENO" 5
+
 fi
 
 
 fi
+
+
+fi
+
+	# If specified, add libelf libpath
+	if test "x$OMR_LIBELF_INSTALL" != "x"; then :
+  OMR_LIBDWARF_LIBPATH="$OMR_LIBDWARF_LIBPATH $OMR_LIBELF_INSTALL"
+fi
+
+	# Restore cross-compiling value
+	cross_compiling=$save_cross_compiling
+
+fi
+
 
 ###
 ### Variable Substitution
